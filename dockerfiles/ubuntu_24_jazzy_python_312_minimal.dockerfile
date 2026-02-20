@@ -17,7 +17,8 @@ RUN apt-get update && \
 		curl \
 		wget \
 		gnupg2 \
-		lsb-release
+		lsb-release \
+        libcap-dev
 
 
 # Upgrade installed packages
@@ -148,7 +149,7 @@ RUN python3 -m pip install --break-system-packages --ignore-installed "pybind11[
 
 RUN mkdir -p ${ROS_ROOT}/src && \
     cd ${ROS_ROOT} && \
-    rosinstall_generator --deps --rosdistro ${ROS_DISTRO} rosidl_runtime_c rcutils rcl rmw tf2 tf2_msgs common_interfaces geometry_msgs nav_msgs std_msgs rosgraph_msgs sensor_msgs vision_msgs rclpy ros2topic ros2pkg ros2doctor ros2run ros2node ros_environment ackermann_msgs example_interfaces > ros2.${ROS_DISTRO}.${ROS_PKG}.rosinstall && \
+    rosinstall_generator --deps --rosdistro ${ROS_DISTRO} rosidl_runtime_c rcutils rcl rmw tf2 tf2_msgs common_interfaces geometry_msgs nav_msgs std_msgs rosgraph_msgs sensor_msgs vision_msgs rclpy ros2topic ros2pkg ros2doctor ros2run ros2node ros_environment ackermann_msgs example_interfaces angles rclcpp hardware_interface > ros2.${ROS_DISTRO}.${ROS_PKG}.rosinstall && \
     cat ros2.${ROS_DISTRO}.${ROS_PKG}.rosinstall && \
     vcs import src < ros2.${ROS_DISTRO}.${ROS_PKG}.rosinstall
 
@@ -172,10 +173,12 @@ COPY jazzy_ws/src /workspace/build_ws/src
 # Removing MoveIt packages from the internal ROS Python 3.12 library build as it uses standard interfaces already built above.
 # This is to ensure that the internal build is as minimal as possible. 
 # For the user facing MoveIt interface workflow, this package should be built with the rest of the workspace uisng the external ROS installation.
-RUN rm -rf /workspace/build_ws/src/moveit
+# RUN rm -rf /workspace/build_ws/src/moveit
 
 # Make sure we're in the right directory
 WORKDIR /workspace
 
+# install everything we need
+RUN /bin/bash -c "source ${ROS_ROOT}/install/setup.sh && apt-get update && rosdep install -y -r --from-paths build_ws/src --ignore-src --rosdistro ${ROS_DISTRO} && apt-get install -y ros-${ROS_DISTRO}-moveit"
 # Build the workspace
-RUN /bin/bash -c "source ${ROS_ROOT}/install/setup.sh && cd build_ws && colcon build"
+RUN /bin/bash -c "source /opt/ros/${ROS_DISTRO}/setup.sh && source ${ROS_ROOT}/install/setup.sh && cd build_ws && colcon build --cmake-args -DBUILD_TESTING=OFF"

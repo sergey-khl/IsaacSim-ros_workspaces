@@ -112,17 +112,17 @@ fi
 # Build the Docker image
 docker build . --network=host -f $DOCKERFILE -t isaac_sim_ros:ubuntu_${UBUNTU_VERSION%.*}_${ROS_DISTRO}
 
-# Prepare the target directory
-rm -rf build_ws/${ROS_DISTRO}
-mkdir -p build_ws/${ROS_DISTRO}
-
-pushd build_ws/${ROS_DISTRO}
-
+# # Prepare the target directory
+# rm -rf build_ws/${ROS_DISTRO}
+# mkdir -p build_ws/${ROS_DISTRO}
+#
+# pushd build_ws/${ROS_DISTRO}
+#
 # Extract files from Docker container
 docker cp $(docker create --rm isaac_sim_ros:ubuntu_${UBUNTU_VERSION%.*}_${ROS_DISTRO}):/workspace/${ROS_DISTRO}_ws ${ROS_DISTRO}_ws
 
-docker cp $(docker create --rm isaac_sim_ros:ubuntu_${UBUNTU_VERSION%.*}_${ROS_DISTRO}):/workspace/build_ws isaac_sim_ros_ws
+# docker cp $(docker create --rm isaac_sim_ros:ubuntu_${UBUNTU_VERSION%.*}_${ROS_DISTRO}):/workspace/build_ws isaac_sim_ros_ws
 
-popd
+# popd
 
 echo "Build complete for $ROS_DISTRO on Ubuntu $UBUNTU_VERSION" 

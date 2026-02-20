@@ -104,7 +104,7 @@ RUN apt update && apt install -y \
     libjpeg-dev \
     python3-pyqt5.qtwebengine
 
-RUN apt update && apt install -y \
+RUN apt update && apt install -q -y \
   python3-pip \
   python3-pytest-cov \
   python3-rosinstall-generator \
@@ -163,22 +163,32 @@ RUN cp /usr/lib/x86_64-linux-gnu/libtinyxml2.so* /workspace/jazzy_ws/install/lib
 RUN cp /usr/lib/x86_64-linux-gnu/libssl.so* /workspace/jazzy_ws/install/lib/ || true
 RUN cp /usr/lib/x86_64-linux-gnu/libcrypto.so* /workspace/jazzy_ws/install/lib/ || true
 
-# Next, build the additional workspace 
-RUN mkdir -p /workspace/build_ws/src
-
-
-# Copy the source files only - don't copy any build artifacts
-COPY jazzy_ws/src /workspace/build_ws/src
-
-# Removing MoveIt packages from the internal ROS Python 3.12 library build as it uses standard interfaces already built above.
-# This is to ensure that the internal build is as minimal as possible. 
-# For the user facing MoveIt interface workflow, this package should be built with the rest of the workspace uisng the external ROS installation.
-# RUN rm -rf /workspace/build_ws/src/moveit
-
 # Make sure we're in the right directory
 WORKDIR /workspace
 
-# install everything we need
-RUN /bin/bash -c "source ${ROS_ROOT}/install/setup.sh && apt-get update && rosdep install -y -r --from-paths build_ws/src --ignore-src --rosdistro ${ROS_DISTRO} && apt-get install -y ros-${ROS_DISTRO}-moveit"
-# Build the workspace
-RUN /bin/bash -c "source /opt/ros/${ROS_DISTRO}/setup.sh && source ${ROS_ROOT}/install/setup.sh && cd build_ws && colcon build --cmake-args -DBUILD_TESTING=OFF"
+COPY jazzy_ws/src /workspace/jazzy_ws/src
+
+
+RUN git clone https://github.com/sergey-khl/bear_ide.git \
+    && cd bear_ide \
+    && ./install.sh
+
+# RUN apt-get update && \
+#     rosdep install -y -r --from-paths ${ROS_ROOT}/src --ignore-src --rosdistro ${ROS_DISTRO} && \
+#     apt-get install -y ros-${ROS_DISTRO}-moveit
+RUN /bin/bash -c "source ${ROS_ROOT}/install/setup.sh && apt-get update && rosdep install -y -r --from-paths jazzy_ws/src --ignore-src --rosdistro ${ROS_DISTRO} --skip-keys 'rti-connext-dds-6.0.1' && apt-get install -y ros-${ROS_DISTRO}-moveit"
+
+# # 5. Build the single workspace (sourcing the underlay so it finds MoveIt)
+# RUN /bin/bash -c "if [ -f /opt/ros/${ROS_DISTRO}/setup.sh ]; then source /opt/ros/${ROS_DISTRO}/setup.sh; fi && \
+#     cd /workspace/${ROS_ROOT} && \
+#     colcon build --merge-install --cmake-args -DBUILD_TESTING=OFF"
+RUN /bin/bash -c "source /opt/ros/${ROS_DISTRO}/setup.sh && source ${ROS_ROOT}/install/setup.sh && cd jazzy_ws && colcon build --merge-install --cmake-args -DBUILD_TESTING=OFF"
+
+
+RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc && \
+    echo "source /workspace/${ROS_ROOT}/install/setup.bash" >> ~/.bashrc && \
+    echo "export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp" >> ~/.bashrc
+
+
+# # install everything we need
+# RUN /bin/bash -c "source ${ROS_ROOT}/install/setup.sh && apt-get update && rosdep install -y -r --from-paths jazzy_ws/src --ignore-src --rosdistro ${ROS_DISTRO} && apt-get install -y ros-${ROS_DISTRO}-moveit"

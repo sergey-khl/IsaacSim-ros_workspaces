@@ -4,6 +4,9 @@ humble_ws/log
 jazzy_ws/build
 jazzy_ws/install
 jazzy_ws/log
+# this one is wrong but screw it for now
+jazzy_ws/jazzy_ws
+
 build_ws/jazzy
 build_ws/humble
 .vscode/

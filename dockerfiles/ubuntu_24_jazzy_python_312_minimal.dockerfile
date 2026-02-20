@@ -118,7 +118,8 @@ RUN apt update && apt install -q -y \
   libpython3-dev \
   liblttng-ust-dev
 
-RUN pip3 install --break-system-packages setuptools==70.0.0
+# BUG: when build this gets overwritten to a newer verison which messes up with colcon build --symlink-install
+RUN pip3 install --break-system-packages setuptools==79.0.1
 
 # Install the correct version of empy that is compatible with ROS 2 jazzy
 # Uninstall any existing empy first, then install version 3.3.4 specifically
@@ -135,6 +136,7 @@ RUN python3 -m pip install --break-system-packages -U --ignore-installed \
   flake8-docstrings \
   flake8-import-order \
   flake8-quotes \
+  rospkg \
   pytest-repeat \
   pytest-rerunfailures \
   pytest \

@@ -80,6 +80,7 @@ mug = prims.create_prim(
     MUG_STAGE_PATH,
     "Xform",
     position=np.array([0, 0, 0]),
+    orientation=rotations.euler_angles_to_quat([0, 0, 90], degrees=True),
     usd_path=assets_root_path + MUG_USD_PATH,
 )
 
@@ -90,6 +91,8 @@ hand_tf = omni.usd.get_world_transform_matrix(panda_hand_prim)
 trans_mat = Gf.Matrix4d().SetTranslate(Gf.Vec3d(0.05, 0, 0))
 rot_mat = Gf.Matrix4d().SetRotate(Gf.Rotation(Gf.Vec3d(0, 1, 0), -90))
 local_offset_tf = rot_mat * trans_mat
+rot_mat = Gf.Matrix4d().SetRotate(Gf.Rotation(Gf.Vec3d(1, 0, 0), 180))
+local_offset_tf = rot_mat * local_offset_tf
 cam_tf = local_offset_tf * hand_tf
 cam_trans = cam_tf.ExtractTranslation()
 cam_quat = cam_tf.ExtractRotationQuat()

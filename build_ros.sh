@@ -119,7 +119,7 @@ docker build . --network=host -f $DOCKERFILE -t isaac_sim_ros:ubuntu_${UBUNTU_VE
 # pushd build_ws/${ROS_DISTRO}
 #
 # Extract files from Docker container
-docker cp $(docker create --rm isaac_sim_ros:ubuntu_${UBUNTU_VERSION%.*}_${ROS_DISTRO}):/workspace/${ROS_DISTRO}_ws ${ROS_DISTRO}_ws
+# docker cp $(docker create --rm isaac_sim_ros:ubuntu_${UBUNTU_VERSION%.*}_${ROS_DISTRO}):/workspace/${ROS_DISTRO}_ws ${ROS_DISTRO}_ws
 
 # docker cp $(docker create --rm isaac_sim_ros:ubuntu_${UBUNTU_VERSION%.*}_${ROS_DISTRO}):/workspace/build_ws isaac_sim_ros_ws
 

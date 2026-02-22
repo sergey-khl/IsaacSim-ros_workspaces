@@ -2,45 +2,62 @@
 
 import rclpy
 from rclpy.node import Node
-from control_msgs.action import GripperCommand
-from rclpy.action import ActionServer, GoalResponse, CancelResponse
-from rclpy.action.server import ServerGoalHandle
-from sensor_msgs.msg import JointState
+from sensor_msgs.msg import JointState, Image
 import threading
+from cv_bridge import CvBridge
+import cv2
 
 
 class DinoController(Node):
     def __init__(self):
         super().__init__('dino_controller_node')
-        
-        self.get_logger().info('Starting dino controller nod')
-        
+
+        self.get_logger().info('Starting dino controller node')
+
         # Current target position
         self.target_position = 0.04  # Start open
         self.position_lock = threading.Lock()
-        
+
         # Publisher to Isaac Sim
         self.isaac_pub = self.create_publisher(
-            JointState,
-            '/isaac_joint_commands',
+                JointState,
+                '/isaac_joint_commands',
+                10
+                )
+
+        self.timer = self.create_timer(0.05, self.publish_gripper_command)
+
+        self.cv_bridge = CvBridge()
+        self.latest_color_img = None
+        self.latest_depth_img = None
+        self.center_depth_value = 0.0
+
+        self.color_sub = self.create_subscription(
+            Image,
+            '/realsense/color/image_raw',
+            self.color_callback,
             10
         )
         
-        # Timer to continuously republish commands to Isaac Sim (20Hz)
-        self.timer = self.create_timer(0.05, self.publish_gripper_command)
-        
-        # Action server to intercept MoveIt's gripper commands
-        self._action_server = ActionServer(
-            self,
-            GripperCommand,
-            '/panda_hand_controller/gripper_cmd',
-            self.execute_callback,
-            goal_callback=self.goal_callback,
-            cancel_callback=self.cancel_callback
+        self.depth_sub = self.create_subscription(
+            Image,
+            '/realsense/depth/image_rect_raw',
+            self.depth_callback,
+            10
         )
+
+    def color_callback(self, msg):
+        self.latest_color_img = self.cv_bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+
+    def depth_callback(self, msg):
+        self.latest_depth_img = self.cv_bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
         
-        self.get_logger().info('Gripper action server ready!')
-    
+        height, width = self.latest_depth_img.shape
+        center_y, center_x = height // 2, width // 2
+        self.center_depth_value = self.latest_depth_img[center_y, center_x]
+        
+        self.get_logger().info(f'Depth at center: {self.center_depth_value}')
+
     def publish_gripper_command(self):
         """Continuously publish the current gripper target to Isaac Sim"""
         with self.position_lock:
@@ -49,41 +66,11 @@ class DinoController(Node):
             msg.name = ['panda_finger_joint1', 'panda_finger_joint2']
             msg.position = [self.target_position, self.target_position]
             self.isaac_pub.publish(msg)
-    
-    def goal_callback(self, goal_request):
-        self.get_logger().info(f'Received goal: position={goal_request.command.position}')
-        return GoalResponse.ACCEPT
-    
-    def cancel_callback(self, goal_handle):
-        self.get_logger().info('Cancel requested')
-        return CancelResponse.ACCEPT
-    
-    async def execute_callback(self, goal_handle: ServerGoalHandle):
-        self.get_logger().info(f'Executing gripper command: {goal_handle.request.command.position}')
-        
-        # Update target position (timer will continuously publish it)
-        with self.position_lock:
-            self.target_position = goal_handle.request.command.position
-        
-        # Wait for gripper to move (simulate execution time)
-        import time
-        time.sleep(1.0)
-        
-        self.get_logger().info('Gripper command completed!')
-        goal_handle.succeed()
-        
-        result = GripperCommand.Result()
-        result.position = goal_handle.request.command.position
-        result.reached_goal = True
-        result.stalled = False
-        
-        return result
-
 
 def main(args=None):
     rclpy.init(args=args)
     node = DinoController()
-    
+
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:

@@ -118,9 +118,6 @@ RUN apt update && apt install -q -y \
   libpython3-dev \
   liblttng-ust-dev
 
-# BUG: when build this gets overwritten to a newer verison which messes up with colcon build --symlink-install
-RUN pip3 install --break-system-packages setuptools==79.0.1
-
 # Install the correct version of empy that is compatible with ROS 2 jazzy
 # Uninstall any existing empy first, then install version 3.3.4 specifically
 RUN python3 -m pip uninstall -y em empy || true
@@ -144,21 +141,18 @@ RUN python3 -m pip install --break-system-packages -U --ignore-installed \
 
 RUN python3 -m pip uninstall numpy -y || true
 RUN python3 -m pip install --break-system-packages --ignore-installed --upgrade pip
-RUN python3 -m pip install --break-system-packages --ignore-installed numpy pybind11 PyYAML
+RUN python3 -m pip install --break-system-packages --ignore-installed numpy==1.26.0 pybind11 PyYAML
 
 # Fix paths for pybind11
 RUN python3 -m pip install --break-system-packages --ignore-installed "pybind11[global]"
 
 RUN mkdir -p ${ROS_ROOT}/src && \
     cd ${ROS_ROOT} && \
-    rosinstall_generator --deps --rosdistro ${ROS_DISTRO} rosidl_runtime_c rcutils rcl rmw tf2 tf2_msgs common_interfaces geometry_msgs nav_msgs std_msgs rosgraph_msgs sensor_msgs vision_msgs rclpy ros2topic ros2pkg ros2doctor ros2run ros2node ros_environment ackermann_msgs example_interfaces angles rclcpp hardware_interface > ros2.${ROS_DISTRO}.${ROS_PKG}.rosinstall && \
-    cat ros2.${ROS_DISTRO}.${ROS_PKG}.rosinstall && \
-    vcs import src < ros2.${ROS_DISTRO}.${ROS_PKG}.rosinstall
+    rosinstall_generator --deps --rosdistro ${ROS_DISTRO} rosidl_runtime_c rcutils rcl rmw tf2 tf2_msgs common_interfaces geometry_msgs nav_msgs std_msgs rosgraph_msgs sensor_msgs vision_msgs rclpy ros2topic ros2pkg ros2doctor ros2run ros2node ros_environment ackermann_msgs example_interfaces angles rclcpp hardware_interface > ros2.${ROS_DISTRO}.rosinstall && \
+    cat ros2.${ROS_DISTRO}.rosinstall && \
+    vcs import src < ros2.${ROS_DISTRO}.rosinstall
 
 RUN rosdep init && rosdep update
-
-# Use logging to help debug build issues
-RUN cd ${ROS_ROOT} && colcon build --merge-install
 
 # Need these to maintain compatibility on non 20.04 systems
 RUN cp /usr/lib/x86_64-linux-gnu/libtinyxml2.so* /workspace/jazzy_ws/install/lib/ || true
@@ -175,22 +169,17 @@ RUN git clone https://github.com/sergey-khl/bear_ide.git \
     && cd bear_ide \
     && ./install.sh
 
-# RUN apt-get update && \
-#     rosdep install -y -r --from-paths ${ROS_ROOT}/src --ignore-src --rosdistro ${ROS_DISTRO} && \
-#     apt-get install -y ros-${ROS_DISTRO}-moveit
-RUN /bin/bash -c "source ${ROS_ROOT}/install/setup.sh && apt-get update && rosdep install -y -r --from-paths jazzy_ws/src --ignore-src --rosdistro ${ROS_DISTRO} --skip-keys 'rti-connext-dds-6.0.1' && apt-get install -y ros-${ROS_DISTRO}-moveit"
+RUN /bin/bash -c "apt-get update && rosdep install -y -r --from-paths /workspace/jazzy_ws/src --ignore-src --rosdistro ${ROS_DISTRO} --skip-keys 'rti-connext-dds-6.0.1' && apt-get install -y ros-${ROS_DISTRO}-moveit"
 
-# # 5. Build the single workspace (sourcing the underlay so it finds MoveIt)
-# RUN /bin/bash -c "if [ -f /opt/ros/${ROS_DISTRO}/setup.sh ]; then source /opt/ros/${ROS_DISTRO}/setup.sh; fi && \
-#     cd /workspace/${ROS_ROOT} && \
-#     colcon build --merge-install --cmake-args -DBUILD_TESTING=OFF"
-RUN /bin/bash -c "source /opt/ros/${ROS_DISTRO}/setup.sh && source ${ROS_ROOT}/install/setup.sh && cd jazzy_ws && colcon build --merge-install --cmake-args -DBUILD_TESTING=OFF"
+
+# BUG: when build this gets overwritten to a newer verison which messes up with colcon build --symlink-install
+RUN pip3 install --break-system-packages setuptools==79.0.1
+
+RUN /bin/bash -c "source /opt/ros/${ROS_DISTRO}/setup.sh && cd /workspace/jazzy_ws && colcon build  --symlink-install --cmake-args -DBUILD_TESTING=OFF"
 
 
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc && \
     echo "source /workspace/${ROS_ROOT}/install/setup.bash" >> ~/.bashrc && \
-    echo "export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp" >> ~/.bashrc
+    echo "export RMW_IMPLEMENTATION=rmw_fastrtps_cpp" >> ~/.bashrc && \
+    echo "export FASTRTPS_DEFAULT_PROFILES_FILE=/workspace/fastdds.xml" >> ~/.bashrc
 
-
-# # install everything we need
-# RUN /bin/bash -c "source ${ROS_ROOT}/install/setup.sh && apt-get update && rosdep install -y -r --from-paths jazzy_ws/src --ignore-src --rosdistro ${ROS_DISTRO} && apt-get install -y ros-${ROS_DISTRO}-moveit"

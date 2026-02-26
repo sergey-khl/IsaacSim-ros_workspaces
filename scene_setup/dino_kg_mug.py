@@ -42,12 +42,27 @@ import omni.graph.core as og
 import omni.kit.commands
 import usdrt.Sdf
 from isaacsim.core.api import SimulationContext
-from isaacsim.core.utils import extensions, prims, rotations, stage, viewports
+from isaacsim.core.utils import extensions, prims, rotations, stage
+from omni.physx.scripts import utils
 from isaacsim.storage.native import get_assets_root_path
-from pxr import Gf
+from isaacsim.core.prims import Articulation
+import omni.kit.hotkeys.core
+from pxr import Gf, UsdPhysics
+from omni.kit.viewport.utility import get_active_viewport
 
 # enable ROS2 bridge extension
 extensions.enable_extension("isaacsim.ros2.bridge")
+extensions.enable_extension("omni.graph.window.action")
+extensions.enable_extension("omni.graph.window.core")
+
+# see bezier_curve_edits.py . remove hotkeys so it doesent interfere with recording
+from omni.kit.hotkeys.core import get_hotkey_registry
+
+hotkey_registry = get_hotkey_registry()
+discovered_hotkeys = hotkey_registry.get_all_hotkeys()
+for hotkey in discovered_hotkeys.copy():
+    hotkey_registry.deregister_hotkey(hotkey)
+
 
 simulation_app.update()
 
@@ -61,7 +76,6 @@ if assets_root_path is None:
     sys.exit()
 
 # Preparing stage
-viewports.set_camera_view(eye=np.array([1.2, 1.2, 0.8]), target=np.array([0, 0, 0.5]))
 
 # Loading the simple_room environment
 stage.add_reference_to_stage(assets_root_path + BACKGROUND_USD_PATH, BACKGROUND_STAGE_PATH)
@@ -79,7 +93,7 @@ robot = prims.create_prim(
 mug = prims.create_prim(
     MUG_STAGE_PATH,
     "Xform",
-    position=np.array([0, 0, 0]),
+    position=np.array([0, -0.2, 0]),
     orientation=rotations.euler_angles_to_quat([0, 0, 90], degrees=True),
     usd_path=assets_root_path + MUG_USD_PATH,
 )
@@ -106,9 +120,22 @@ realsense_prim = prims.create_prim(
     usd_path=assets_root_path + CAMERA_USD_PATH,
 )
 
+viewport = get_active_viewport()
+viewport.camera_path = f"{CAMERA_PATH}/RSD455/Camera_OmniVision_OV9782_Color"
+
 # Set variant selections for the Franka robot
 robot.GetVariantSet("Gripper").SetVariantSelection("AlternateFinger")
 robot.GetVariantSet("Mesh").SetVariantSelection("Quality")
+
+
+# enable physics
+# https://docs.isaacsim.omniverse.nvidia.com/5.1.0/python_scripting/environment_setup.html#enable-physics-and-collision-for-a-mesh
+utils.setRigidBody(mug, "convexDecomposition", False)
+# https://docs.isaacsim.omniverse.nvidia.com/5.1.0/python_scripting/environment_setup.html#set-mass-properties-for-a-mesh
+mass_api = UsdPhysics.MassAPI.Apply(mug)
+# need to make super light or gripper cant lift it 
+mass_api.CreateMassAttr(0.01)
+
 
 simulation_app.update()
 
@@ -160,10 +187,9 @@ try:
                 ("RenderProduct_Depth.outputs:renderProductPath", "DepthHelper.inputs:renderProductPath"),
             ],
             og.Controller.Keys.SET_VALUES: [
-                # Setting the /Franka target prim to Articulation Controller node
                 ("ArticulationController.inputs:robotPath", FRANKA_STAGE_PATH),
-                ("PublishJointState.inputs:topicName", "isaac_joint_states"),
-                ("SubscribeJointState.inputs:topicName", "isaac_joint_commands"),
+                ("PublishJointState.inputs:topicName", "joint_states"),
+                ("SubscribeJointState.inputs:topicName", "joint_commands"),
                 ("PublishJointState.inputs:targetPrim", [usdrt.Sdf.Path(FRANKA_STAGE_PATH)]),
                 # camera
                 ("RenderProduct_RGB.inputs:cameraPrim", [usdrt.Sdf.Path(f"{CAMERA_PATH}/RSD455/Camera_OmniVision_OV9782_Color")]),
@@ -184,6 +210,12 @@ simulation_app.update()
 
 # need to initialize physics getting any articulation etc.
 simulation_context.initialize_physics()
+
+# https://docs.isaacsim.omniverse.nvidia.com/5.1.0/manipulators/manipulators_lula_trajectory_generator.html#generating-a-c-space-trajectory
+franka_articulation = Articulation(FRANKA_STAGE_PATH)
+initial_pos = np.array([0.0, -1.0, 0.0, -2.5, 0.0, 1.5, 0.8, 0.04, 0.04])
+franka_articulation.set_joint_positions(initial_pos)
+franka_articulation.set_joint_velocities(np.zeros_like(initial_pos))
 
 simulation_context.play()
 

@@ -24,7 +24,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'dino_controller = dino_kg.dino_controller:main'
+            'dino_controller = dino_kg.dino_controller:main',
+            'dino_recorder = dino_kg.dino_recorder:main'
         ],
     },
 )

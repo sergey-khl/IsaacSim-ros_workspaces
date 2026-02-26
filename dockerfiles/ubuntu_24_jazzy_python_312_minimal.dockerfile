@@ -137,11 +137,12 @@ RUN python3 -m pip install --break-system-packages -U --ignore-installed \
   pytest-repeat \
   pytest-rerunfailures \
   pytest \
+  pynput \
   lark
 
 RUN python3 -m pip uninstall numpy -y || true
 RUN python3 -m pip install --break-system-packages --ignore-installed --upgrade pip
-RUN python3 -m pip install --break-system-packages --ignore-installed numpy==1.26.0 pybind11 PyYAML
+RUN python3 -m pip install --break-system-packages --ignore-installed numpy==1.26.0 opencv-python==4.11.0.86 pybind11 PyYAML
 
 # Fix paths for pybind11
 RUN python3 -m pip install --break-system-packages --ignore-installed "pybind11[global]"
@@ -169,7 +170,7 @@ RUN git clone https://github.com/sergey-khl/bear_ide.git \
     && cd bear_ide \
     && ./install.sh
 
-RUN /bin/bash -c "apt-get update && rosdep install -y -r --from-paths /workspace/jazzy_ws/src --ignore-src --rosdistro ${ROS_DISTRO} --skip-keys 'rti-connext-dds-6.0.1' && apt-get install -y ros-${ROS_DISTRO}-moveit"
+RUN /bin/bash -c "apt-get update && rosdep install -y -r --from-paths /workspace/jazzy_ws/src --ignore-src --rosdistro ${ROS_DISTRO} --skip-keys 'rti-connext-dds-6.0.1' && apt-get install -y ros-${ROS_DISTRO}-moveit ros-${ROS_DISTRO}-moveit-py ros-$ROS_DISTRO-moveit-servo ros-${ROS_DISTRO}-ros2launch"
 
 
 # BUG: when build this gets overwritten to a newer verison which messes up with colcon build --symlink-install

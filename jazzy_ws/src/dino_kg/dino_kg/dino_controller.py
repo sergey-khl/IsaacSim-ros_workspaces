@@ -16,7 +16,6 @@ from trajectory_msgs.msg import JointTrajectory
 from tf2_ros import Buffer, StaticTransformBroadcaster, TransformListener
 import numpy as np
 import os
-from scipy.spatial.transform import Rotation as R
 
 # dino control comes from https://gist.github.com/normandipalo/fbc21f23606fbe3d407e22c363cb134e
 import torch

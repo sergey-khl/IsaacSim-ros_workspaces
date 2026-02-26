@@ -21,6 +21,7 @@ import os
 
 # servoing similar to what is done here: https://github.com/moveit/moveit2/blob/main/moveit_ros/moveit_servo/demos/servo_keyboard_input.cpp
 # tf transform stuff based on https://docs.ros.org/en/foxy/Tutorials/Intermediate/Tf2/Tf2-Main.html
+# keyboard stuf based on https://github.com/ethz-asl/better_teleop/blob/main/scripts/better_teleop.py
 class DinoRecordingNode(Node):
     def __init__(self):
         super().__init__('dino_recorder')

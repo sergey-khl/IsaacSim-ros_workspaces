@@ -18,6 +18,18 @@ import numpy as np
 import os
 from scipy.spatial.transform import Rotation as R
 
+# dino control comes from https://gist.github.com/normandipalo/fbc21f23606fbe3d407e22c363cb134e
+import torch
+import numpy as np 
+import matplotlib.pyplot as plt 
+from torchvision import transforms,utils
+from PIL import Image as PILImage
+import torchvision.transforms as T
+import warnings 
+import glob
+import time
+from dino_kg.correspondences import find_correspondences, draw_correspondences
+
 # servoing similar to what is done here: https://github.com/moveit/moveit2/blob/main/moveit_ros/moveit_servo/demos/servo_keyboard_input.cpp
 # tf transform stuff based on https://docs.ros.org/en/foxy/Tutorials/Intermediate/Tf2/Tf2-Main.html
 class DinoControllerNode(Node):
@@ -165,7 +177,6 @@ def main(args=None):
     executor.add_node(controller)
 
     try:
-        # rclpy.spin(recorder)
         executor.spin()
     except KeyboardInterrupt:
         pass

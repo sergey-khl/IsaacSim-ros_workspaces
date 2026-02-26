@@ -176,6 +176,11 @@ RUN /bin/bash -c "apt-get update && rosdep install -y -r --from-paths /workspace
 # BUG: when build this gets overwritten to a newer verison which messes up with colcon build --symlink-install
 RUN pip3 install --break-system-packages setuptools==79.0.1
 
+# this is for dino specific requirements
+RUN pip3 install torch==2.10.0 torchvision==0.25.0 --break-system-packages --index-url https://download.pytorch.org/whl/cu126
+RUN pip3 install --break-system-packages matplotlib==3.5.0 timm==0.4.12 tqdm==4.62.3 scikit-learn==1.8.0
+
+
 RUN /bin/bash -c "source /opt/ros/${ROS_DISTRO}/setup.sh && cd /workspace/jazzy_ws && colcon build  --symlink-install --cmake-args -DBUILD_TESTING=OFF"
 
 

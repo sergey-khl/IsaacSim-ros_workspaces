@@ -285,7 +285,6 @@ def main(args=None):
     executor.add_node(recorder)
 
     try:
-        # rclpy.spin(recorder)
         executor.spin()
     except KeyboardInterrupt:
         pass

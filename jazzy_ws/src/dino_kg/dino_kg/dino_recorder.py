@@ -95,7 +95,7 @@ class DinoRecordingNode(Node):
 
         self.depth_sub = self.create_subscription(
                 Image,
-                '/realsense/depth/image_rect_raw',
+                '/realsense/aligned_depth_to_color/image_raw',
                 self.depth_callback,
                 10,
                 callback_group=self.img_cb_group
@@ -166,7 +166,7 @@ class DinoRecordingNode(Node):
             np.save(os.path.join(save_dir, "trajectory.npy"), traj_array)
 
             cv2.imwrite(os.path.join(save_dir, "bottleneck_rgb.png"), self.bottleneck_rgb)
-            cv2.imwrite(os.path.join(save_dir, "bottleneck_depth.png"), self.bottleneck_depth)
+            cv2.imwrite(os.path.join(save_dir, "bottleneck_depth.tiff"), self.bottleneck_depth)
 
             self.get_logger().info("saved recordiung")
         else:
@@ -199,7 +199,6 @@ class DinoRecordingNode(Node):
                     self.save_recording()
                 elif char == 'r':
                     self.discard_recording()
-
             except AttributeError:
                 if key == keyboard.Key.shift:
                     self.pressed.add('shift')

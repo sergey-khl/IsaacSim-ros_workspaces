@@ -13,8 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-# NOTE: see camera_ros.py for realsense specs
+# THIS code is expanded from standalone_examples/api/isaacsim.ros2.bridge/moveit.py
 
 import sys
 
@@ -47,7 +46,7 @@ from omni.physx.scripts import utils
 from isaacsim.storage.native import get_assets_root_path
 from isaacsim.core.prims import Articulation
 import omni.kit.hotkeys.core
-from pxr import Gf, UsdPhysics
+from pxr import Gf, UsdPhysics, UsdGeom
 from omni.kit.viewport.utility import get_active_viewport
 
 # enable ROS2 bridge extension
@@ -102,7 +101,7 @@ mug = prims.create_prim(
 panda_hand_prim = simulation_context.stage.GetPrimAtPath(PANDA_HAND_PATH)
 hand_tf = omni.usd.get_world_transform_matrix(panda_hand_prim)
 
-trans_mat = Gf.Matrix4d().SetTranslate(Gf.Vec3d(0.05, 0, 0))
+trans_mat = Gf.Matrix4d().SetTranslate(Gf.Vec3d(0.04, 0, 0.04))
 rot_mat = Gf.Matrix4d().SetRotate(Gf.Rotation(Gf.Vec3d(0, 1, 0), -90))
 local_offset_tf = rot_mat * trans_mat
 rot_mat = Gf.Matrix4d().SetRotate(Gf.Rotation(Gf.Vec3d(1, 0, 0), 180))
@@ -119,6 +118,33 @@ realsense_prim = prims.create_prim(
     orientation=cam_quat_xyzw,
     usd_path=assets_root_path + CAMERA_USD_PATH,
 )
+
+# NOTE: see camera_ros.py for realsense specs
+
+# pixel_size is 3 microns from the datasheet
+def apply_intrinsics(cam_prim_path, width, height, K, pixel_size=3.0 * 1e-3):
+    cam = UsdGeom.Camera(simulation_context.stage.GetPrimAtPath(cam_prim_path))
+    
+    fx, cx, fy, cy = K[0], K[2], K[4], K[5]
+    
+    horizontal_aperture = width * pixel_size
+    vertical_aperture = height * pixel_size
+    
+    focal_length = ((fx + fy) / 2.0) * pixel_size
+    
+    cam.GetFocalLengthAttr().Set(focal_length)
+    cam.GetHorizontalApertureAttr().Set(horizontal_aperture)
+    cam.GetVerticalApertureAttr().Set(vertical_aperture)
+
+color_cam_path = f"{CAMERA_PATH}/RSD455/Camera_OmniVision_OV9782_Color"
+depth_cam_path = f"{CAMERA_PATH}/RSD455/Camera_Pseudo_Depth"
+
+# got this from realsense d435i in lab
+COLOR_K = [914.834228515625, 0.0, 653.8088989257812, 0.0, 914.9916381835938, 345.4898376464844, 0.0, 0.0, 1.0]
+DEPTH_K = [422.7320861816406, 0.0, 424.1393737792969, 0.0, 422.7320861816406, 239.05503845214844, 0.0, 0.0, 1.0]
+
+apply_intrinsics(color_cam_path, width=1280, height=720, K=COLOR_K)
+apply_intrinsics(depth_cam_path, width=848, height=480, K=DEPTH_K)
 
 viewport = get_active_viewport()
 viewport.camera_path = f"{CAMERA_PATH}/RSD455/Camera_OmniVision_OV9782_Color"
@@ -157,6 +183,8 @@ try:
                 ("RenderProduct_Depth", "isaacsim.core.nodes.IsaacCreateRenderProduct"),
                 ("RGBHelper", "isaacsim.ros2.bridge.ROS2CameraHelper"),
                 ("DepthHelper", "isaacsim.ros2.bridge.ROS2CameraHelper"),
+                ("ColorInfoHelper", "isaacsim.ros2.bridge.ROS2PublishCameraInfo"),
+                ("DepthInfoHelper", "isaacsim.ros2.bridge.ROS2PublishCameraInfo"),
             ],
             og.Controller.Keys.CONNECT: [
                 ("OnImpulseEvent.outputs:execOut", "PublishJointState.inputs:execIn"),
@@ -183,6 +211,8 @@ try:
                 ("OnImpulseEvent.outputs:execOut", "RenderProduct_Depth.inputs:execIn"),
                 ("RenderProduct_RGB.outputs:execOut", "RGBHelper.inputs:execIn"),
                 ("RenderProduct_Depth.outputs:execOut", "DepthHelper.inputs:execIn"),
+                ("RenderProduct_RGB.outputs:execOut", "ColorInfoHelper.inputs:execIn"),
+                ("RenderProduct_Depth.outputs:execOut", "DepthInfoHelper.inputs:execIn"),
                 ("RenderProduct_RGB.outputs:renderProductPath", "RGBHelper.inputs:renderProductPath"),
                 ("RenderProduct_Depth.outputs:renderProductPath", "DepthHelper.inputs:renderProductPath"),
             ],
@@ -192,14 +222,33 @@ try:
                 ("SubscribeJointState.inputs:topicName", "joint_commands"),
                 ("PublishJointState.inputs:targetPrim", [usdrt.Sdf.Path(FRANKA_STAGE_PATH)]),
                 # camera
-                ("RenderProduct_RGB.inputs:cameraPrim", [usdrt.Sdf.Path(f"{CAMERA_PATH}/RSD455/Camera_OmniVision_OV9782_Color")]),
-                ("RenderProduct_Depth.inputs:cameraPrim", [usdrt.Sdf.Path(f"{CAMERA_PATH}/RSD455/Camera_Pseudo_Depth")]),
+                ("RenderProduct_RGB.inputs:cameraPrim", [usdrt.Sdf.Path(color_cam_path)]),
+                ("RenderProduct_RGB.inputs:width", 1280),
+                ("RenderProduct_RGB.inputs:height", 720),
+                # ("RenderProduct_Depth.inputs:cameraPrim", [usdrt.Sdf.Path(f"{CAMERA_PATH}/RSD455/Camera_Pseudo_Depth")]),
+                ("RenderProduct_Depth.inputs:cameraPrim", [usdrt.Sdf.Path(color_cam_path)]),
+                # ("RenderProduct_Depth.inputs:width", 848),
+                # ("RenderProduct_Depth.inputs:height", 480),
+                ("RenderProduct_Depth.inputs:width", 1280),
+                ("RenderProduct_Depth.inputs:height", 720),
                 ("RGBHelper.inputs:type", "rgb"),
                 ("RGBHelper.inputs:topicName", "/realsense/color/image_raw"),
-                ("RGBHelper.inputs:frameId", "realsense_color_frame"), # It's good practice to separate these frames in ROS
+                ("RGBHelper.inputs:frameId", "realsense_color_frame"),
                 ("DepthHelper.inputs:type", "depth"),
-                ("DepthHelper.inputs:topicName", "/realsense/depth/image_rect_raw"),
-                ("DepthHelper.inputs:frameId", "realsense_depth_frame"),
+                # ("DepthHelper.inputs:topicName", "/realsense/depth/image_rect_raw"),
+                ("DepthHelper.inputs:topicName", "/realsense/aligned_depth_to_color/image_raw"),
+                ("DepthHelper.inputs:frameId", "realsense_color_frame"),
+
+                ("ColorInfoHelper.inputs:topicName", "/realsense/color/camera_info"),
+                ("ColorInfoHelper.inputs:frameId", "camera_color_optical_frame"),
+                ("ColorInfoHelper.inputs:width", 1280),
+                ("ColorInfoHelper.inputs:height", 720),
+                ("ColorInfoHelper.inputs:k", COLOR_K),
+                # ("DepthInfoHelper.inputs:topicName", "/realsense/depth/camera_info"),
+                # ("DepthInfoHelper.inputs:frameId", "camera_depth_optical_frame"),
+                # ("DepthInfoHelper.inputs:width", 848),
+                # ("DepthInfoHelper.inputs:height", 480),
+                # ("DepthInfoHelper.inputs:k", DEPTH_K),
             ],
         },
     )
@@ -213,7 +262,7 @@ simulation_context.initialize_physics()
 
 # https://docs.isaacsim.omniverse.nvidia.com/5.1.0/manipulators/manipulators_lula_trajectory_generator.html#generating-a-c-space-trajectory
 franka_articulation = Articulation(FRANKA_STAGE_PATH)
-initial_pos = np.array([0.0, -1.0, 0.0, -2.5, 0.0, 1.5, 0.8, 0.04, 0.04])
+initial_pos = np.array([0.0, -0.785, 0.0, -2.356, 0.0, 1.571, 0.785, 0.04, 0.04])
 franka_articulation.set_joint_positions(initial_pos)
 franka_articulation.set_joint_velocities(np.zeros_like(initial_pos))
 

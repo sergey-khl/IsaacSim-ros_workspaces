@@ -38,6 +38,7 @@ DEPTH_K = [422.7320861816406, 0.0, 424.1393737792969, 0.0, 422.7320861816406, 23
 # tf transform stuff based on https://docs.ros.org/en/foxy/Tutorials/Intermediate/Tf2/Tf2-Main.html
 # dino speefic code is gotten from https://gist.github.com/normandipalo/fbc21f23606fbe3d407e22c363cb134e
 class DinoControllerNode(Node):
+    # TODO: using regular moveit is probably better at some point
     def __init__(self):
         super().__init__('dino_controller')
         self.declare_parameter('skill', 'robot_pickup_mug') # underscore seperated triplet used in behaviour graph
@@ -208,22 +209,6 @@ class DinoControllerNode(Node):
 
             goal_transform = self.find_transformation(points1, points2)
             self.get_logger().info(str(goal_transform))
-
-            # we need to publish relative to base of robot so goal does not move when ee moves
-            # t = self.tf_buffer.lookup_transform(
-            #         self.base_frame,
-            #         self.ee_frame,
-            #         rclpy.time.Time()
-            #         )
-            # cam_trans = [t.transform.translation.x, t.transform.translation.y, t.transform.translation.z]
-            # cam_quat = [t.transform.rotation.x, t.transform.rotation.y, t.transform.rotation.z, t.transform.rotation.w]
-            #
-            # cam_transform = np.eye(4)
-            # cam_transform[:3, :3] = Rotation.from_quat(cam_quat).as_matrix()
-            # cam_transform[:3, 3] = cam_trans
-            #
-            # goal_relative_to_base = cam_transform @ goal_transform
-
             error = np.linalg.norm(np.array(points1) - np.array(points2))
 
             t_cam = self.tf_buffer.lookup_transform(
@@ -284,6 +269,7 @@ class DinoControllerNode(Node):
     def project_to_3d(self, points, depth_img, scale_u, scale_v, name):
         fx_rgb, cx_rgb, fy_rgb, cy_rgb = COLOR_K[0], COLOR_K[2], COLOR_K[4], COLOR_K[5]
         
+        # NOTE: technically this is supposed to be 1 but it moves less agressively with larger number
         depth_scale = 1.5
         
         points = np.asarray(points, dtype=float)
@@ -380,8 +366,11 @@ class DinoControllerNode(Node):
                 t.child_frame_id = self.bottleneck_frame
 
                 # initialize bottleneck frame. we use this to find relative pose transform in subsequent frames
+                self.bottleneck_tf_saved = t
                 self.tf_broadcaster.sendTransform(t)
 
+            self.bottleneck_tf_saved.header.stamp = self.get_clock().now().to_msg()
+            self.tf_broadcaster.sendTransform(self.bottleneck_tf_saved)
 
             pose_data = self.trajectories[self.idx]
             tx, ty, tz, rx, ry, rz, rw, self.gripper_position = pose_data
@@ -399,9 +388,26 @@ class DinoControllerNode(Node):
 
             self.servo_pub.publish(target_pose)
 
-            -
+            # check if we have reached target pose
+            try: 
+                t = self.tf_buffer.lookup_transform(
+                        self.bottleneck_frame,
+                        self.ee_frame,
+                        rclpy.time.Time()
+                        )
+                error = np.linalg.norm([
+                    t.transform.translation.x - tx,
+                    t.transform.translation.y - ty,
+                    t.transform.translation.z - tz
+                ])
 
-            self.idx += 1
+                self.get_logger().info(str(error))
+                if error < 0.02: 
+                    self.idx += 1
+            except Exception as e:
+                self.get_logger().error(f"{e}")
+
+
         else:
             self.get_logger().info("Finished replay stage")
 

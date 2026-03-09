@@ -101,7 +101,7 @@ def generate_launch_description():
             "0.04",
             "0.0",
             "0.04",
-            "0.0",
+            "1.5708", # rotate so that x, y  matches u, v of img
             "0.0",
             "0.0",
             "panda_hand",
@@ -131,6 +131,11 @@ def generate_launch_description():
     acceleration_filter_update_period = {"update_period": 0.01}
     planning_group_name = {"planning_group_name": "panda_arm"}
 
+    servo_smoothing_overrides = {
+        "moveit_servo.scale.linear": 0.08,
+        "moveit_servo.scale.rotational": 0.15,
+    }
+
     servo_node = Node(
         package="moveit_servo",
         executable="servo_node",
@@ -139,6 +144,7 @@ def generate_launch_description():
             servo_params,
             acceleration_filter_update_period,
             planning_group_name,
+            servo_smoothing_overrides,
             moveit_config.robot_description,
             moveit_config.robot_description_semantic,
             moveit_config.robot_description_kinematics,

@@ -34,6 +34,7 @@ COLOR_K = [914.834228515625, 0.0, 653.8088989257812, 0.0, 914.9916381835938, 345
 DEPTH_K = [422.7320861816406, 0.0, 424.1393737792969, 0.0, 422.7320861816406, 239.05503845214844, 0.0, 0.0, 1.0]
 
 # servoing similar to what is done here: https://github.com/moveit/moveit2/blob/main/moveit_ros/moveit_servo/demos/servo_keyboard_input.cpp
+# moveit code similar to what is done in: gripper_to_isaac.py
 # tf transform stuff based on https://docs.ros.org/en/foxy/Tutorials/Intermediate/Tf2/Tf2-Main.html
 # dino speefic code is gotten from https://gist.github.com/normandipalo/fbc21f23606fbe3d407e22c363cb134e
 class DinoControllerNode(Node):
@@ -89,14 +90,18 @@ class DinoControllerNode(Node):
         self.idx = 0
 
         # alignment stuff
-        self.num_pairs = 8 
+        # self.num_pairs = 12
+        self.num_pairs = 8
         self.load_size = 224 
-        self.layer = 9 
+        # self.layer = 9
+        self.layer = 5
         self.facet = 'key' 
         self.bin=True 
-        self.thresh=0.05 
+        # self.thresh=0.05 
+        self.thresh=0.08
         self.model_type='dino_vits8' 
-        self.stride=4
+        # self.stride=4
+        self.stride=8
         self.bottleneck_rgb = PILImage.open(os.path.join(skill_path, "bottleneck_rgb.png")).convert('RGB')
         self.bottleneck_depth = cv2.imread(os.path.join(skill_path, "bottleneck_depth.tiff"), cv2.IMREAD_UNCHANGED)
         self.moving = False
@@ -157,6 +162,8 @@ class DinoControllerNode(Node):
         if np.any(msg.points[0].velocities):
             self.moving = True
         else:
+            if self.moving:
+                self.last_alignment_time = time.time()
             self.moving = False
 
         # converting trajectory to joint state
@@ -170,12 +177,13 @@ class DinoControllerNode(Node):
         self.isaac_pub.publish(js)
 
     def correspondences_loop(self):
+        time.sleep(2.0)
         while rclpy.ok():
             if self.state != "alignment" or self.latest_color_img is None or self.latest_depth_img is None or self.moving or time.time() - self.last_alignment_time < 1.0:
                 time.sleep(0.1)
                 continue
 
-                
+            self.get_logger().info("\n\n\n\nPERFORMIGNG ALIGNGMENT \n\n\n\n\n\n")
             with torch.no_grad():
                 points1, points2, image1_pil, image2_pil = find_correspondences(
                     self.latest_color_img, self.bottleneck_rgb, self.num_pairs, 
@@ -184,11 +192,11 @@ class DinoControllerNode(Node):
                 )
 
 
-            # # debug stuff
-            # fig1, fig2 = draw_correspondences(points1, points2, image1_pil, image2_pil)
-            # fig1.savefig("latest.png", bbox_inches='tight', pad_inches=0)
-            # fig2.savefig("bottleneck.png", bbox_inches='tight', pad_inches=0)
-            # plt.close('all')
+            # debug stuff
+            fig1, fig2 = draw_correspondences(points1, points2, image1_pil, image2_pil)
+            fig1.savefig("latest.png", bbox_inches='tight', pad_inches=0)
+            fig2.savefig("bottleneck.png", bbox_inches='tight', pad_inches=0)
+            plt.close('all')
 
             scale_u = self.latest_color_img.size[0] / image1_pil.size[0]
             scale_v = self.latest_color_img.size[1] / image1_pil.size[1]
@@ -199,6 +207,7 @@ class DinoControllerNode(Node):
             self.get_logger().info(str(points2))
 
             goal_transform = self.find_transformation(points1, points2)
+            self.get_logger().info(str(goal_transform))
 
             # we need to publish relative to base of robot so goal does not move when ee moves
             # t = self.tf_buffer.lookup_transform(
@@ -265,7 +274,6 @@ class DinoControllerNode(Node):
 
                 self.tf_broadcaster.sendTransform(t)
                 self.moving = True
-                self.last_alignment_time = time.time()
 
                 self.get_logger().info(f"Error: {error}")
                 if error <= 0.1:
@@ -276,8 +284,6 @@ class DinoControllerNode(Node):
     def project_to_3d(self, points, depth_img, scale_u, scale_v, name):
         fx_rgb, cx_rgb, fy_rgb, cy_rgb = COLOR_K[0], COLOR_K[2], COLOR_K[4], COLOR_K[5]
         
-        # fx_depth, cx_depth, fy_depth, cy_depth = DEPTH_K[0], DEPTH_K[2], DEPTH_K[4], DEPTH_K[5]
-        
         depth_scale = 1.5
         
         points = np.asarray(points, dtype=float)
@@ -285,17 +291,9 @@ class DinoControllerNode(Node):
         u_rgb = points[:, 1] * scale_u
         v_rgb = points[:, 0] * scale_v
         
-        # u_depth = ((u_rgb - cx_rgb) / fx_rgb) * fx_depth + cx_depth
-        # v_depth = ((v_rgb - cy_rgb) / fy_rgb) * fy_depth + cy_depth
-        
-        # u_idx = np.round(u_depth).astype(int)
-        # v_idx = np.round(v_depth).astype(int)
         u_idx = np.round(u_rgb).astype(int)
         v_idx = np.round(v_rgb).astype(int)
-        self.get_logger().info(str(depth_img.shape))
         
-        # u_idx = np.clip(u_idx, 0, depth_img.shape[0] - 1)
-        # v_idx = np.clip(v_idx, 0, depth_img.shape[1] - 1)
 
         depth_vis = cv2.normalize(depth_img, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
 
@@ -304,7 +302,6 @@ class DinoControllerNode(Node):
         for ix, iy in zip(u_idx, v_idx):
             cv2.circle(depth_vis_color, (ix, iy), radius=5, color=(0, 0, 255), thickness=-1)
 
-        # Save the image
         cv2.imwrite(name, depth_vis_color)
         
         z = depth_img[v_idx, u_idx] / depth_scale
@@ -343,6 +340,7 @@ class DinoControllerNode(Node):
         transform = np.eye(4)
         transform[:3, :3] = R
         transform[:3, 3] = t
+                                    
         return transform
 
     def alignment(self):
@@ -400,6 +398,8 @@ class DinoControllerNode(Node):
             target_pose.pose.orientation.w = rw
 
             self.servo_pub.publish(target_pose)
+
+            -
 
             self.idx += 1
         else:

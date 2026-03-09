@@ -101,7 +101,7 @@ def generate_launch_description():
             "0.04",
             "0.0",
             "0.04",
-            "0.0",
+            "1.5708", # rotate so that x, y  matches u, v of img
             "0.0",
             "0.0",
             "panda_hand",

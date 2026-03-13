@@ -40,11 +40,6 @@ def generate_launch_description():
         default_value="true",
         description="Use simulation clock if true",
     )
-    skill = DeclareLaunchArgument(
-        "skill",
-        default_value="robot_pickup_mug",
-        description="skill name"
-    )
 
     moveit_config = (
         MoveItConfigsBuilder("moveit_resources_panda")
@@ -109,6 +104,24 @@ def generate_launch_description():
         ],
         parameters=[{"use_sim_time": LaunchConfiguration("use_sim_time")}],
     )
+    base2home_tf_node = Node(
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        name="static_transform_publisher_base_to_home",
+        output="log",
+        arguments=[
+            "0.307",
+            "0.0",
+            "0.59",
+            "0.92",
+            "-0.38",
+            "0.0",
+            "0.0",
+            "panda_link0",
+            "home",
+        ],
+        parameters=[{"use_sim_time": LaunchConfiguration("use_sim_time")}],
+    )
 
     # Publish TF
     robot_state_publisher = Node(
@@ -132,7 +145,7 @@ def generate_launch_description():
     planning_group_name = {"planning_group_name": "panda_arm"}
 
     servo_smoothing_overrides = {
-        "moveit_servo.scale.linear": 0.08,
+        "moveit_servo.scale.linear": 0.06,
         "moveit_servo.scale.rotational": 0.15,
     }
 
@@ -163,7 +176,16 @@ def generate_launch_description():
         output="screen",
         parameters=[{
             "use_sim_time": LaunchConfiguration("use_sim_time"),
-            "skill": LaunchConfiguration("skill"),
+            }],
+    )
+
+    task_executor_node = Node(
+        package="dino_kg",
+        executable="task_executor",
+        name="task_executor",
+        output="screen",
+        parameters=[{
+            "use_sim_time": LaunchConfiguration("use_sim_time")
             }],
     )
 
@@ -171,13 +193,14 @@ def generate_launch_description():
         [
             ros2_control_hardware_type,
             use_sim_time,
-            skill,
             world2robot_tf_node,
             hand2camera_tf_node,
+            base2home_tf_node,
             robot_state_publisher,
             move_group_node,
             servo_node,
             dino_controller_node,
+            task_executor_node
         ]
     )
 

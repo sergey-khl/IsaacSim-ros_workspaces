@@ -13,7 +13,6 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'launch'), glob(os.path.join('launch', '*launch.[pxy][yma]*')))
-
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -29,7 +28,8 @@ setup(
     entry_points={
         'console_scripts': [
             'dino_controller = dino_kg.dino_controller:main',
-            'dino_recorder = dino_kg.dino_recorder:main'
+            'dino_recorder = dino_kg.dino_recorder:main',
+            'task_executor = dino_kg.task_executor:main'
         ],
     },
 )

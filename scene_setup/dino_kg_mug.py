@@ -25,10 +25,14 @@ FRANKA_USD_PATH = "/Isaac/Robots/FrankaRobotics/FrankaPanda/franka.usd"
 BACKGROUND_STAGE_PATH = "/background"
 BACKGROUND_USD_PATH = "/Isaac/Environments/Simple_Room/simple_room.usd"
 
-MUG_STAGE_PATH = "/Mug"
-MUG_USD_PATH = "/Isaac/Props/Mugs/SM_Mug_A2.usd"
-# MUG_STAGE_PATH = "/Mug"
-# MUG_USD_PATH = "/Isaac/Props/Food/mac_n_cheese.usd"
+STRAWBERRY_STAGE_PATH = "/Strawberry"
+STRAWBERRY_USD_PATH = "file:/mnt/krabby-patty-vault/projects/robo-kg/IsaacSim-ros_workspaces/scene_setup/Food/Berries/stawberry.usd"
+KIWI_STAGE_PATH = "/Kiwi"
+KIWI_USD_PATH = "file:/mnt/krabby-patty-vault/projects/robo-kg/IsaacSim-ros_workspaces/scene_setup/Food/Fruit/Kiwi01.usd"
+ONION_STAGE_PATH = "/Onion"
+ONION_USD_PATH = "file:/mnt/krabby-patty-vault/projects/robo-kg/IsaacSim-ros_workspaces/scene_setup/Food/Vegetables/RedOnion.usd"
+BIN_STAGE_PATH = "/Bin"
+BIN_USD_PATH = "/Isaac/Props/KLT_Bin/small_KLT.usd"
 CAMERA_PATH = f"{FRANKA_STAGE_PATH}/panda_hand/RealSense"
 PANDA_HAND_PATH = f"{FRANKA_STAGE_PATH}/panda_hand"
 CAMERA_USD_PATH = "/Isaac/Sensors/Intel/RealSense/rsd455.usd"
@@ -90,13 +94,38 @@ robot = prims.create_prim(
     usd_path=assets_root_path + FRANKA_USD_PATH,
 )
 
-# load mug
-mug = prims.create_prim(
-    MUG_STAGE_PATH,
+# load scene
+strawberry = prims.create_prim(
+    STRAWBERRY_STAGE_PATH,
     "Xform",
-    position=np.array([0, -0.2, 0]),
-    orientation=rotations.euler_angles_to_quat([0, 0, 90], degrees=True),
-    usd_path=assets_root_path + MUG_USD_PATH,
+    position=np.array([0.2, -0.15, 0]),
+    orientation=np.array([0, 0, 0, 1]),
+    scale=np.array([2, 2, 2]),
+    usd_path=STRAWBERRY_USD_PATH,
+)
+kiwi = prims.create_prim(
+    KIWI_STAGE_PATH,
+    "Xform",
+    position=np.array([0.34, -0.25, 0]),
+    orientation=rotations.gf_rotation_to_np_array(Gf.Rotation(Gf.Vec3d(1, 0, 0), 90)),
+    scale=np.array([2, 2, 2]),
+    usd_path=KIWI_USD_PATH,
+)
+onion = prims.create_prim(
+    ONION_STAGE_PATH,
+    "Xform",
+    position=np.array([0.15, -0.25, 0]),
+    orientation=rotations.gf_rotation_to_np_array(Gf.Rotation(Gf.Vec3d(1, 0, 0), 90)),
+    scale=np.array([1.5, 1.5, 1.5]),
+    usd_path=ONION_USD_PATH,
+)
+
+bin = prims.create_prim(
+    BIN_STAGE_PATH,
+    "Xform",
+    position=np.array([-0.1, -0.3, 0.1]),
+    orientation=np.array([0, 0, 0, 1]),
+    usd_path=assets_root_path + BIN_USD_PATH,
 )
 
 # https://docs.isaacsim.omniverse.nvidia.com/5.1.0/replicator_tutorials/tutorial_replicator_scene_based_sdg.html#creating-the-cameras-and-the-writer
@@ -158,11 +187,20 @@ robot.GetVariantSet("Mesh").SetVariantSelection("Quality")
 
 # enable physics
 # https://docs.isaacsim.omniverse.nvidia.com/5.1.0/python_scripting/environment_setup.html#enable-physics-and-collision-for-a-mesh
-utils.setRigidBody(mug, "convexDecomposition", False)
+utils.setRigidBody(strawberry, "convexDecomposition", False)
+utils.setRigidBody(kiwi, "convexDecomposition", False)
+utils.setRigidBody(onion, "convexDecomposition", False)
+utils.setRigidBody(bin, "convexDecomposition", False)
 # https://docs.isaacsim.omniverse.nvidia.com/5.1.0/python_scripting/environment_setup.html#set-mass-properties-for-a-mesh
-mass_api = UsdPhysics.MassAPI.Apply(mug)
+strawberry_mass_api = UsdPhysics.MassAPI.Apply(strawberry)
+kiwi_mass_api = UsdPhysics.MassAPI.Apply(kiwi)
+onion_mass_api = UsdPhysics.MassAPI.Apply(onion)
+bin_mass_api = UsdPhysics.MassAPI.Apply(bin)
 # need to make super light or gripper cant lift it 
-mass_api.CreateMassAttr(0.01)
+strawberry_mass_api.CreateMassAttr(0.01)
+kiwi_mass_api.CreateMassAttr(0.01)
+onion_mass_api.CreateMassAttr(0.01)
+bin_mass_api.CreateMassAttr(1.0)
 
 
 simulation_app.update()

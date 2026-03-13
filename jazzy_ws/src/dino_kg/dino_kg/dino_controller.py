@@ -5,7 +5,7 @@ import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
-from rclpy.action import ActionClient
+from rclpy.action import ActionClient, ActionServer
 from sensor_msgs.msg import JointState, Image
 import threading
 from cv_bridge import CvBridge
@@ -13,10 +13,11 @@ import cv2
 from moveit_msgs.action import MoveGroup
 from moveit_msgs.srv import ServoCommandType
 from trajectory_msgs.msg import JointTrajectory
-from tf2_ros import Buffer, TransformBroadcaster, TransformListener
+from tf2_ros import Buffer, StaticTransformBroadcaster, TransformBroadcaster, TransformListener
 import numpy as np
 import os
 from scipy.spatial.transform import Rotation
+from dino_interfaces.action import Skill
 
 # dino stuff
 import torch
@@ -41,8 +42,15 @@ class DinoControllerNode(Node):
     # TODO: using regular moveit is probably better at some point
     def __init__(self):
         super().__init__('dino_controller')
-        self.declare_parameter('skill', 'robot_pickup_mug') # underscore seperated triplet used in behaviour graph
-        self.skill = self.get_parameter('skill').get_parameter_value().string_value
+
+        self.server_cb_group = MutuallyExclusiveCallbackGroup()
+        self.action_server = ActionServer(
+            self,
+            Skill,
+            'execute_skill',
+            execute_callback=self.execute_callback,
+            callback_group=self.server_cb_group
+        )
 
         # this is used to get correct robot state so we can do servoing
         self.move_group_client = ActionClient(self, MoveGroup, 'move_action')
@@ -85,31 +93,23 @@ class DinoControllerNode(Node):
         self.latest_depth_img = None
 
         # traj replay stuff
-        skill_path = f"/workspace/data/{self.skill}"
-        self.trajectories = np.load(os.path.join(skill_path, "trajectory.npy"))
         self.gripper_position = 0.04
-        self.idx = 0
+        self.state = None
 
         # alignment stuff
         # self.num_pairs = 12
         self.num_pairs = 8
         self.load_size = 224 
-        # self.layer = 9
-        self.layer = 5
+        self.layer = 10
+        # self.layer = 5
         self.facet = 'key' 
         self.bin=True 
-        # self.thresh=0.05 
-        self.thresh=0.08
+        self.thresh=0.12
+        # self.thresh=0.08
         self.model_type='dino_vits8' 
-        # self.stride=4
-        self.stride=8
-        self.bottleneck_rgb = PILImage.open(os.path.join(skill_path, "bottleneck_rgb.png")).convert('RGB')
-        self.bottleneck_depth = cv2.imread(os.path.join(skill_path, "bottleneck_depth.tiff"), cv2.IMREAD_UNCHANGED)
+        self.stride=4
+        # self.stride=8
         self.moving = False
-        self.last_alignment_time = time.time() # to account for any jerkiness at startup
-
-        # state management
-        self.state = "alignment" # alignment or replay
 
         # used to find ee pose
         self.tf_buffer = Buffer()
@@ -120,6 +120,7 @@ class DinoControllerNode(Node):
         self.bottleneck_frame = 'bottleneck'
         self.goal_frame = 'correspondence_goal'
         self.cam_frame = 'sim_camera'
+        self.home_frame = 'home'
 
         # should make faster subscription processing
         self.traj_cb_group = MutuallyExclusiveCallbackGroup()
@@ -156,6 +157,38 @@ class DinoControllerNode(Node):
 
         self.get_logger().info("STARTED dino controller...")
 
+    def execute_callback(self, goal_handle):
+        self.skill = goal_handle.request.name
+
+        if self.skill == "<HOME>":
+            self.state = "going_home"
+        else:
+            skill_path = f"/workspace/data/{self.skill}"
+            self.trajectories = np.load(os.path.join(skill_path, "trajectory.npy"))
+            self.bottleneck_rgb = PILImage.open(os.path.join(skill_path, "bottleneck_rgb.png")).convert('RGB')
+            self.bottleneck_depth = cv2.imread(os.path.join(skill_path, "bottleneck_depth.tiff"), cv2.IMREAD_UNCHANGED)
+
+            # prepare for skill execution
+            self.idx = 0
+            self.state = "alignment"
+            self.last_alignment_time = time.time()
+            self.moving = False
+        
+        feedback_msg = Skill.Feedback()
+
+        while rclpy.ok():
+            feedback_msg.state = self.state
+            # TODO: we dont do anything with feeback rn but it can be used to reset to a safe position if task fails.
+            goal_handle.publish_feedback(feedback_msg)
+
+            if self.state == "finish":
+                break
+
+            time.sleep(1)
+
+        goal_handle.succeed()
+        return Skill.Result(success=True)
+
     def trajectory_callback(self, msg: JointTrajectory):
         if not msg.points:
             return
@@ -176,6 +209,20 @@ class DinoControllerNode(Node):
         js.velocity = list(msg.points[0].velocities) + [0, 0]
 
         self.isaac_pub.publish(js)
+
+    def go_home(self):
+        self.get_logger().info("trying to go home")
+        try:
+            t = self.tf_buffer.lookup_transform(
+                    self.base_frame,
+                    self.home_frame,
+                    rclpy.time.Time()
+                    )
+        except Exception as e:
+            return
+
+        if self.go_till_pose(self.base_frame, self.ee_frame, t.transform.translation.x, t.transform.translation.y, t.transform.translation.z, t.transform.rotation.x, t.transform.rotation.y, t.transform.rotation.z, t.transform.rotation.w):
+            self.state = "finish"
 
     def correspondences_loop(self):
         time.sleep(2.0)
@@ -231,6 +278,7 @@ class DinoControllerNode(Node):
             cam_ee_trans = [t_cam_to_ee.transform.translation.x, t_cam_to_ee.transform.translation.y, t_cam_to_ee.transform.translation.z]
             cam_ee_quat = [t_cam_to_ee.transform.rotation.x, t_cam_to_ee.transform.rotation.y, t_cam_to_ee.transform.rotation.z, t_cam_to_ee.transform.rotation.w]
 
+            # scipy makes life easier
             cam_to_ee_matrix = np.eye(4)
             cam_to_ee_matrix[:3, :3] = Rotation.from_quat(cam_ee_quat).as_matrix()
             cam_to_ee_matrix[:3, 3] = cam_ee_trans
@@ -261,7 +309,7 @@ class DinoControllerNode(Node):
                 self.moving = True
 
                 self.get_logger().info(f"Error: {error}")
-                if error <= 0.1:
+                if error <= 0.05:
                     self.get_logger().info("Finished alignment stage")
                     self.state = "replay"
 
@@ -329,6 +377,47 @@ class DinoControllerNode(Node):
                                     
         return transform
 
+
+    def go_till_pose(self, source_frame, target_frame, tx, ty, tz, rx, ry, rz, rw):
+        target_pose = PoseStamped()
+        target_pose.header.frame_id = source_frame
+        target_pose.header.stamp = self.get_clock().now().to_msg()
+        target_pose.pose.position.x = tx
+        target_pose.pose.position.y = ty
+        target_pose.pose.position.z = tz
+        target_pose.pose.orientation.x = rx
+        target_pose.pose.orientation.y = ry
+        target_pose.pose.orientation.z = rz
+        target_pose.pose.orientation.w = rw
+
+        self.servo_pub.publish(target_pose)
+
+        # check if we have reached target pose
+        try: 
+            t = self.tf_buffer.lookup_transform(
+                    source_frame,
+                    target_frame,
+                    rclpy.time.Time()
+                    )
+            t_error = np.linalg.norm([
+                t.transform.translation.x - tx,
+                t.transform.translation.y - ty,
+                t.transform.translation.z - tz
+            ])
+
+            r_diff = Rotation.from_quat([rx, ry, rz, rw]).inv() * Rotation.from_quat([t.transform.rotation.x, t.transform.rotation.y, t.transform.rotation.z, t.transform.rotation.w])
+
+            r_error = r_diff.magnitude()
+
+            self.get_logger().debug(f"{t_error} {r_error}")
+            if t_error < 0.05 and r_error < 0.07: 
+                return True
+            else:
+                return False
+        except:
+            return False
+
+
     def alignment(self):
         try:
             t = self.tf_buffer.lookup_transform(
@@ -336,22 +425,10 @@ class DinoControllerNode(Node):
                     self.goal_frame,
                     rclpy.time.Time()
                     )
-        except Exception as e:
-            # self.get_logger().debug(f"probably just dont have corr yet {e}")
+        except:
             return
 
-        target_pose = PoseStamped()
-        target_pose.header.frame_id = self.base_frame
-        target_pose.header.stamp = self.get_clock().now().to_msg()
-        target_pose.pose.position.x = t.transform.translation.x
-        target_pose.pose.position.y = t.transform.translation.y
-        target_pose.pose.position.z = t.transform.translation.z
-        target_pose.pose.orientation.x = t.transform.rotation.x
-        target_pose.pose.orientation.y = t.transform.rotation.y
-        target_pose.pose.orientation.z = t.transform.rotation.z
-        target_pose.pose.orientation.w = t.transform.rotation.w
-
-        self.servo_pub.publish(target_pose)
+        self.go_till_pose(self.base_frame, self.ee_frame, t.transform.translation.x, t.transform.translation.y, t.transform.translation.z, t.transform.rotation.x, t.transform.rotation.y, t.transform.rotation.z, t.transform.rotation.w)
 
     def replay(self):
         if self.idx < len(self.trajectories):
@@ -375,49 +452,26 @@ class DinoControllerNode(Node):
             pose_data = self.trajectories[self.idx]
             tx, ty, tz, rx, ry, rz, rw, self.gripper_position = pose_data
 
-            target_pose = PoseStamped()
-            target_pose.header.frame_id = self.bottleneck_frame
-            target_pose.header.stamp = self.get_clock().now().to_msg()
-            target_pose.pose.position.x = tx
-            target_pose.pose.position.y = ty
-            target_pose.pose.position.z = tz
-            target_pose.pose.orientation.x = rx
-            target_pose.pose.orientation.y = ry
-            target_pose.pose.orientation.z = rz
-            target_pose.pose.orientation.w = rw
-
-            self.servo_pub.publish(target_pose)
-
-            # check if we have reached target pose
-            try: 
-                t = self.tf_buffer.lookup_transform(
-                        self.bottleneck_frame,
-                        self.ee_frame,
-                        rclpy.time.Time()
-                        )
-                error = np.linalg.norm([
-                    t.transform.translation.x - tx,
-                    t.transform.translation.y - ty,
-                    t.transform.translation.z - tz
-                ])
-
-                self.get_logger().info(str(error))
-                if error < 0.02: 
-                    self.idx += 1
-            except Exception as e:
-                self.get_logger().error(f"{e}")
-
+            if self.go_till_pose(self.bottleneck_frame, self.ee_frame, tx, ty, tz, rx, ry, rz, rw):
+                self.idx += 1
 
         else:
+            self.state = "finish"
             self.get_logger().info("Finished replay stage")
 
     def control_loop(self):
         with self.tlock:
+            if self.state is None:
+                self.get_logger().warning(f"probably waiting for skill")
+                return
+
             # NOTE for sergio: panda moves uses link8 as its ee not panda_hand
             if self.state == "alignment":
                 self.alignment()
             elif self.state == "replay":
                 self.replay()
+            elif self.state == "going_home":
+                self.go_home()
             else:
                 self.get_logger().error(f"unknown state {self.state}")
 

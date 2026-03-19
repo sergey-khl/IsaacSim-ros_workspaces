@@ -93,9 +93,9 @@ def generate_launch_description():
         name="static_transform_publisher_hand_to_camera",
         output="log",
         arguments=[
-            "0.04",
+            "0.07",
             "0.0",
-            "0.04",
+            "0.07",
             "1.5708", # rotate so that x, y  matches u, v of img
             "0.0",
             "0.0",

@@ -106,19 +106,19 @@ strawberry = prims.create_prim(
 kiwi = prims.create_prim(
     KIWI_STAGE_PATH,
     "Xform",
-    position=np.array([0.34, -0.25, 0]),
-    orientation=rotations.gf_rotation_to_np_array(Gf.Rotation(Gf.Vec3d(1, 0, 0), 90)),
-    scale=np.array([2, 2, 2]),
-    usd_path=KIWI_USD_PATH,
-)
-onion = prims.create_prim(
-    ONION_STAGE_PATH,
-    "Xform",
-    position=np.array([0.15, -0.25, 0]),
+    position=np.array([0.2, -0.25, 0]),
     orientation=rotations.gf_rotation_to_np_array(Gf.Rotation(Gf.Vec3d(1, 0, 0), 90)),
     scale=np.array([1.5, 1.5, 1.5]),
-    usd_path=ONION_USD_PATH,
+    usd_path=KIWI_USD_PATH,
 )
+# onion = prims.create_prim(
+#     ONION_STAGE_PATH,
+#     "Xform",
+#     position=np.array([0.2, -0.25, 0]),
+#     orientation=rotations.gf_rotation_to_np_array(Gf.Rotation(Gf.Vec3d(1, 0, 0), 90)),
+#     scale=np.array([1.5, 1.5, 1.5]),
+#     usd_path=ONION_USD_PATH,
+# )
 
 bin = prims.create_prim(
     BIN_STAGE_PATH,
@@ -132,7 +132,7 @@ bin = prims.create_prim(
 panda_hand_prim = simulation_context.stage.GetPrimAtPath(PANDA_HAND_PATH)
 hand_tf = omni.usd.get_world_transform_matrix(panda_hand_prim)
 
-trans_mat = Gf.Matrix4d().SetTranslate(Gf.Vec3d(0.04, 0, 0.04))
+trans_mat = Gf.Matrix4d().SetTranslate(Gf.Vec3d(0.07, 0, 0.07))
 rot_mat = Gf.Matrix4d().SetRotate(Gf.Rotation(Gf.Vec3d(0, 1, 0), -90))
 local_offset_tf = rot_mat * trans_mat
 rot_mat = Gf.Matrix4d().SetRotate(Gf.Rotation(Gf.Vec3d(1, 0, 0), 180))
@@ -189,17 +189,17 @@ robot.GetVariantSet("Mesh").SetVariantSelection("Quality")
 # https://docs.isaacsim.omniverse.nvidia.com/5.1.0/python_scripting/environment_setup.html#enable-physics-and-collision-for-a-mesh
 utils.setRigidBody(strawberry, "convexDecomposition", False)
 utils.setRigidBody(kiwi, "convexDecomposition", False)
-utils.setRigidBody(onion, "convexDecomposition", False)
+# utils.setRigidBody(onion, "convexDecomposition", False)
 utils.setRigidBody(bin, "convexDecomposition", False)
 # https://docs.isaacsim.omniverse.nvidia.com/5.1.0/python_scripting/environment_setup.html#set-mass-properties-for-a-mesh
 strawberry_mass_api = UsdPhysics.MassAPI.Apply(strawberry)
 kiwi_mass_api = UsdPhysics.MassAPI.Apply(kiwi)
-onion_mass_api = UsdPhysics.MassAPI.Apply(onion)
+# onion_mass_api = UsdPhysics.MassAPI.Apply(onion)
 bin_mass_api = UsdPhysics.MassAPI.Apply(bin)
 # need to make super light or gripper cant lift it 
 strawberry_mass_api.CreateMassAttr(0.01)
 kiwi_mass_api.CreateMassAttr(0.01)
-onion_mass_api.CreateMassAttr(0.01)
+# onion_mass_api.CreateMassAttr(0.01)
 bin_mass_api.CreateMassAttr(1.0)
 
 

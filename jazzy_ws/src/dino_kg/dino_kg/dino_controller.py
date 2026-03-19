@@ -104,12 +104,13 @@ class DinoControllerNode(Node):
         # self.layer = 5
         self.facet = 'key' 
         self.bin=True 
-        self.thresh=0.12
+        self.thresh=0.13
         # self.thresh=0.08
         self.model_type='dino_vits8' 
         self.stride=4
         # self.stride=8
         self.moving = False
+        self.align_goal_exists = False # TODO: kinda a hack, should be clearing tf tree
 
         # used to find ee pose
         self.tf_buffer = Buffer()
@@ -173,6 +174,7 @@ class DinoControllerNode(Node):
             self.state = "alignment"
             self.last_alignment_time = time.time()
             self.moving = False
+            self.align_goal_exists = False
         
         feedback_msg = Skill.Feedback()
 
@@ -186,6 +188,9 @@ class DinoControllerNode(Node):
 
             time.sleep(1)
 
+        # reset states for next skill
+        self.moving = False
+
         goal_handle.succeed()
         return Skill.Result(success=True)
 
@@ -193,7 +198,7 @@ class DinoControllerNode(Node):
         if not msg.points:
             return
 
-        if np.any(msg.points[0].velocities):
+        if np.any(msg.points[0].velocities) > 0.001:
             self.moving = True
         else:
             if self.moving:
@@ -233,11 +238,19 @@ class DinoControllerNode(Node):
 
             self.get_logger().info("\n\n\n\nPERFORMIGNG ALIGNGMENT \n\n\n\n\n\n")
             with torch.no_grad():
-                points1, points2, image1_pil, image2_pil = find_correspondences(
-                    self.latest_color_img, self.bottleneck_rgb, self.num_pairs, 
-                    self.load_size, self.layer, self.facet, self.bin, 
-                    self.thresh, self.model_type, self.stride
-                )
+                try:
+                    points1, points2, image1_pil, image2_pil = find_correspondences(
+                        self.latest_color_img, self.bottleneck_rgb, self.num_pairs, 
+                        self.load_size, self.layer, self.facet, self.bin, 
+                        self.thresh, self.model_type, self.stride
+                    )
+                except:
+                    self.get_logger().info("failed to get alignment trying with something less hard")
+                    points1, points2, image1_pil, image2_pil = find_correspondences(
+                        self.latest_color_img, self.bottleneck_rgb, self.num_pairs, 
+                        self.load_size, 7, self.facet, self.bin, 
+                        0.05, self.model_type, self.stride
+                    )
 
 
             # debug stuff
@@ -307,6 +320,7 @@ class DinoControllerNode(Node):
 
                 self.tf_broadcaster.sendTransform(t)
                 self.moving = True
+                self.align_goal_exists = True
 
                 self.get_logger().info(f"Error: {error}")
                 if error <= 0.05:
@@ -425,7 +439,10 @@ class DinoControllerNode(Node):
                     self.goal_frame,
                     rclpy.time.Time()
                     )
-        except:
+        except Exception as e:
+            return
+
+        if not self.align_goal_exists:
             return
 
         self.go_till_pose(self.base_frame, self.ee_frame, t.transform.translation.x, t.transform.translation.y, t.transform.translation.z, t.transform.rotation.x, t.transform.rotation.y, t.transform.rotation.z, t.transform.rotation.w)

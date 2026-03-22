@@ -10,4 +10,5 @@ jazzy_ws/jazzy_ws
 build_ws/jazzy
 build_ws/humble
 .vscode/
+*.h5
 *.pyc

@@ -384,7 +384,7 @@ class DinoControllerNode(Node):
         # Determine translation vector
         t = cY - np.dot(R, cX)
 
-        # create the transformation matrix we can use to find goal
+        # create the transformation matrix for goal
         transform = np.eye(4)
         transform[:3, :3] = R
         transform[:3, 3] = t
@@ -406,7 +406,7 @@ class DinoControllerNode(Node):
 
         self.servo_pub.publish(target_pose)
 
-        # check if we have reached target pose
+        # check have reached target pose
         try: 
             t = self.tf_buffer.lookup_transform(
                     source_frame,
@@ -459,7 +459,7 @@ class DinoControllerNode(Node):
                 t.header.stamp = self.get_clock().now().to_msg()
                 t.child_frame_id = self.bottleneck_frame
 
-                # initialize bottleneck frame. we use this to find relative pose transform in subsequent frames
+                # initialize bottleneck frame. Use this to find relative pose transform in subsequent frames
                 self.bottleneck_tf_saved = t
                 self.tf_broadcaster.sendTransform(t)
 
@@ -482,7 +482,6 @@ class DinoControllerNode(Node):
                 self.get_logger().warning(f"probably waiting for skill")
                 return
 
-            # NOTE for sergio: panda moves uses link8 as its ee not panda_hand
             if self.state == "alignment":
                 self.alignment()
             elif self.state == "replay":

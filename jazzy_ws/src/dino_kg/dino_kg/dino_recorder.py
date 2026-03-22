@@ -29,7 +29,7 @@ class DinoRecordingNode(Node):
         self.skill = self.get_parameter('skill').get_parameter_value().string_value
 
 
-        # this is used to get correct robot state so we can do servoing
+        # this is used to get correct robot state for servoing
         self.move_group_client = ActionClient(self, MoveGroup, 'move_action')
         self.move_group_client.wait_for_server()
 
@@ -48,7 +48,7 @@ class DinoRecordingNode(Node):
                 10
                 )
 
-        # we need to instantiate the type of servo mode for moveit. 1 means twist. 2 is pose which we will use for the actual dino control
+        # Instantiate the type of servo mode for moveit. 1 means twist. 2 is pose which we will use for the actual dino control
         self.command_type_client = self.create_client(ServoCommandType, '/servo_node/switch_command_type')
 
         # wait for servo srv

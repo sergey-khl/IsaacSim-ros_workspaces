@@ -14,11 +14,17 @@
 # limitations under the License.
 
 # THIS code is expanded from standalone_examples/api/isaacsim.ros2.bridge/moveit.py
+# see standalone_examples/benchmarks/benchmark_camera.py in the isaac repo for how to use replicator to save vids
+
 
 import sys
+import os
 
 import numpy as np
 from isaacsim import SimulationApp
+
+SEED = 0
+np.random.seed(SEED)
 
 FRANKA_STAGE_PATH = "/Franka"
 FRANKA_USD_PATH = "/Isaac/Robots/FrankaRobotics/FrankaPanda/franka.usd"
@@ -29,11 +35,10 @@ STRAWBERRY_STAGE_PATH = "/Strawberry"
 STRAWBERRY_USD_PATH = "file:/mnt/krabby-patty-vault/projects/robo-kg/IsaacSim-ros_workspaces/scene_setup/Food/Berries/stawberry.usd"
 KIWI_STAGE_PATH = "/Kiwi"
 KIWI_USD_PATH = "file:/mnt/krabby-patty-vault/projects/robo-kg/IsaacSim-ros_workspaces/scene_setup/Food/Fruit/Kiwi01.usd"
-ONION_STAGE_PATH = "/Onion"
-ONION_USD_PATH = "file:/mnt/krabby-patty-vault/projects/robo-kg/IsaacSim-ros_workspaces/scene_setup/Food/Vegetables/RedOnion.usd"
 BIN_STAGE_PATH = "/Bin"
 BIN_USD_PATH = "/Isaac/Props/KLT_Bin/small_KLT.usd"
 CAMERA_PATH = f"{FRANKA_STAGE_PATH}/panda_hand/RealSense"
+BACKGROUND_CAMERA_PATH = f"{FRANKA_STAGE_PATH}/panda_link0/RealSenseBackground"
 PANDA_HAND_PATH = f"{FRANKA_STAGE_PATH}/panda_hand"
 CAMERA_USD_PATH = "/Isaac/Sensors/Intel/RealSense/rsd455.usd"
 
@@ -54,6 +59,7 @@ from isaacsim.core.prims import Articulation
 import omni.kit.hotkeys.core
 from pxr import Gf, UsdPhysics, UsdGeom
 from omni.kit.viewport.utility import get_active_viewport
+import omni.replicator.core as rep
 
 # enable ROS2 bridge extension
 extensions.enable_extension("isaacsim.ros2.bridge")
@@ -95,36 +101,43 @@ robot = prims.create_prim(
 )
 
 # load scene
+std = 0.001
 strawberry = prims.create_prim(
     STRAWBERRY_STAGE_PATH,
     "Xform",
-    position=np.array([0.2, -0.15, 0]),
-    orientation=np.array([0, 0, 0, 1]),
+    position=np.array([0.2, -0.15, 0]) + np.array([
+        np.random.normal(0, std), 
+        np.random.normal(0, std), 
+        0
+        ]),
+    orientation=rotations.gf_rotation_to_np_array(Gf.Rotation(Gf.Vec3d(0, 0, 1), np.random.normal(0, 180))),
     scale=np.array([2, 2, 2]),
     usd_path=STRAWBERRY_USD_PATH,
 )
+kiwi_base_rot = Gf.Rotation(Gf.Vec3d(1, 0, 0), 90)
+kiwi_rand_rot = Gf.Rotation(Gf.Vec3d(0, 0, 1), np.random.normal(0, 180))
 kiwi = prims.create_prim(
     KIWI_STAGE_PATH,
     "Xform",
-    position=np.array([0.2, -0.25, 0]),
-    orientation=rotations.gf_rotation_to_np_array(Gf.Rotation(Gf.Vec3d(1, 0, 0), 90)),
+    position=np.array([0.2, -0.25, 0]) + np.array([
+        np.random.normal(0, std), 
+        np.random.normal(0, std), 
+        0
+        ]),
+    orientation=rotations.gf_rotation_to_np_array(kiwi_rand_rot * kiwi_base_rot),
     scale=np.array([1.5, 1.5, 1.5]),
     usd_path=KIWI_USD_PATH,
 )
-# onion = prims.create_prim(
-#     ONION_STAGE_PATH,
-#     "Xform",
-#     position=np.array([0.2, -0.25, 0]),
-#     orientation=rotations.gf_rotation_to_np_array(Gf.Rotation(Gf.Vec3d(1, 0, 0), 90)),
-#     scale=np.array([1.5, 1.5, 1.5]),
-#     usd_path=ONION_USD_PATH,
-# )
 
 bin = prims.create_prim(
     BIN_STAGE_PATH,
     "Xform",
-    position=np.array([-0.1, -0.3, 0.1]),
-    orientation=np.array([0, 0, 0, 1]),
+    position=np.array([-0.1, -0.3, 0.1]) + np.array([
+        np.random.normal(0, std), 
+        np.random.normal(0, std), 
+        0
+        ]),
+    orientation=rotations.gf_rotation_to_np_array(Gf.Rotation(Gf.Vec3d(0, 0, 1), 90)),
     usd_path=assets_root_path + BIN_USD_PATH,
 )
 
@@ -142,6 +155,7 @@ cam_trans = cam_tf.ExtractTranslation()
 cam_quat = cam_tf.ExtractRotationQuat()
 cam_quat_xyzw = (cam_quat.GetReal(), *cam_quat.GetImaginary())
 
+
 realsense_prim = prims.create_prim(
     CAMERA_PATH,
     "Xform",
@@ -149,6 +163,30 @@ realsense_prim = prims.create_prim(
     orientation=cam_quat_xyzw,
     usd_path=assets_root_path + CAMERA_USD_PATH,
 )
+
+realsense_prim_background = prims.create_prim(
+    BACKGROUND_CAMERA_PATH,
+    "Xform",
+    position=[0.5, 0.5, 0.3], 
+    orientation=rotations.gf_rotation_to_np_array(Gf.Rotation(Gf.Vec3d(0, 0, 1), 250)),
+    usd_path=assets_root_path + CAMERA_USD_PATH,
+)
+
+# record video on cameras
+rp_hand = rep.create.render_product(f"{BACKGROUND_CAMERA_PATH}/RSD455/Camera_OmniVision_OV9782_Color", (1280, 720))
+out_dir = os.path.join(os.getcwd(), "/home/don-congrejo/Downloads/test/side")
+writer_hand = rep.WriterRegistry.get("BasicWriter")
+writer_hand.initialize(output_dir=out_dir, rgb=True)
+writer_hand.attach(rp_hand)
+
+rp_side = rep.create.render_product(f"{CAMERA_PATH}/RSD455/Camera_OmniVision_OV9782_Color", (1280, 720))
+out_dir = os.path.join(os.getcwd(), "/home/don-congrejo/Downloads/test/hand")
+writer_side = rep.WriterRegistry.get("BasicWriter")
+writer_side.initialize(output_dir=out_dir, rgb=True)
+writer_side.attach(rp_side)
+
+
+
 
 # NOTE: see camera_ros.py for realsense specs
 
@@ -190,17 +228,13 @@ robot.GetVariantSet("Mesh").SetVariantSelection("Quality")
 utils.setRigidBody(strawberry, "convexDecomposition", False)
 utils.setRigidBody(kiwi, "convexDecomposition", False)
 # utils.setRigidBody(onion, "convexDecomposition", False)
-utils.setRigidBody(bin, "convexDecomposition", False)
 # https://docs.isaacsim.omniverse.nvidia.com/5.1.0/python_scripting/environment_setup.html#set-mass-properties-for-a-mesh
 strawberry_mass_api = UsdPhysics.MassAPI.Apply(strawberry)
 kiwi_mass_api = UsdPhysics.MassAPI.Apply(kiwi)
-# onion_mass_api = UsdPhysics.MassAPI.Apply(onion)
-bin_mass_api = UsdPhysics.MassAPI.Apply(bin)
 # need to make super light or gripper cant lift it 
 strawberry_mass_api.CreateMassAttr(0.01)
 kiwi_mass_api.CreateMassAttr(0.01)
 # onion_mass_api.CreateMassAttr(0.01)
-bin_mass_api.CreateMassAttr(1.0)
 
 
 simulation_app.update()
@@ -312,6 +346,8 @@ while simulation_app.is_running():
 
     # Run with a fixed step size
     simulation_context.step(render=True)
+
+    rep.orchestrator.step()
 
     # Tick the Publish/Subscribe JointState and Publish Clock nodes each frame
     og.Controller.set(og.Controller.attribute("/ActionGraph/OnImpulseEvent.state:enableImpulse"), True)

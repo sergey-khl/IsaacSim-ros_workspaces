@@ -170,7 +170,7 @@ RUN git clone https://github.com/sergey-khl/bear_ide.git \
     && cd bear_ide \
     && ./install.sh
 
-RUN /bin/bash -c "apt-get update && rosdep install -y -r --from-paths /workspace/jazzy_ws/src --ignore-src --rosdistro ${ROS_DISTRO} --skip-keys 'rti-connext-dds-6.0.1' && apt-get install -y ros-${ROS_DISTRO}-moveit ros-${ROS_DISTRO}-moveit-py ros-$ROS_DISTRO-moveit-servo ros-${ROS_DISTRO}-ros2launch ros-${ROS_DISTRO}ros2interface"
+RUN /bin/bash -c "apt-get update && rosdep install -y -r --from-paths /workspace/jazzy_ws/src --ignore-src --rosdistro ${ROS_DISTRO} --skip-keys 'rti-connext-dds-6.0.1' && apt-get install -y ros-${ROS_DISTRO}-moveit ros-${ROS_DISTRO}-moveit-py ros-$ROS_DISTRO-moveit-servo ros-${ROS_DISTRO}-ros2launch "
 
 
 # BUG: when build this gets overwritten to a newer verison which messes up with colcon build --symlink-install

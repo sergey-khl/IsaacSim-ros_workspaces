@@ -15,8 +15,8 @@ class TaskExecutor(Node):
         # find these tasks in /workspace/data/* folder.
         # <HOME> is special skill which will move robot joints to home position
         self.tasks = {
-                # "stash_fruit": ["robot_pickup_strawberry", "<HOME>", "item_drop_box", "<HOME>", "robot_pickup_kiwi", "<HOME>", "item_drop_box"]
-                "stash_fruit": ["robot_pickup_kiwi", "<HOME>", "item_drop_box", "<HOME>", "robot_pickup_strawberry", "<HOME>", "item_drop_box"]
+                "stash_fruit": ["robot_pickup_strawberry", "<HOME>", "item_drop_box", "<HOME>", "robot_pickup_kiwi", "<HOME>", "item_drop_box"]
+                # "stash_fruit": ["robot_pickup_kiwi", "<HOME>", "item_drop_box", "<HOME>", "robot_pickup_strawberry", "<HOME>", "item_drop_box"]
                 }
 
         self.curr_task = "stash_fruit" # this should be a param but im lazy

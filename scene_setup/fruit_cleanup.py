@@ -23,8 +23,10 @@ import os
 import numpy as np
 from isaacsim import SimulationApp
 
-SEED = 0
+# CHANGEME
+SEED = 9
 np.random.seed(SEED)
+IMG_PATH = f"/home/don-congrejo/Downloads/fruit_cleanup_{SEED}"
 
 FRANKA_STAGE_PATH = "/Franka"
 FRANKA_USD_PATH = "/Isaac/Robots/FrankaRobotics/FrankaPanda/franka.usd"
@@ -101,27 +103,30 @@ robot = prims.create_prim(
 )
 
 # load scene
-std = 0.001
+pos_variation = 0.05
+# pos_variation = 0
+rot_variation = 20
+# rot_variation = 0
 strawberry = prims.create_prim(
     STRAWBERRY_STAGE_PATH,
     "Xform",
     position=np.array([0.2, -0.15, 0]) + np.array([
-        np.random.normal(0, std), 
-        np.random.normal(0, std), 
+        np.random.uniform(-pos_variation, pos_variation), 
+        np.random.uniform(-pos_variation, pos_variation), 
         0
         ]),
-    orientation=rotations.gf_rotation_to_np_array(Gf.Rotation(Gf.Vec3d(0, 0, 1), np.random.normal(0, 180))),
+    orientation=rotations.gf_rotation_to_np_array(Gf.Rotation(Gf.Vec3d(0, 0, 1), np.random.uniform(-rot_variation, rot_variation))),
     scale=np.array([2, 2, 2]),
     usd_path=STRAWBERRY_USD_PATH,
 )
 kiwi_base_rot = Gf.Rotation(Gf.Vec3d(1, 0, 0), 90)
-kiwi_rand_rot = Gf.Rotation(Gf.Vec3d(0, 0, 1), np.random.normal(0, 180))
+kiwi_rand_rot = Gf.Rotation(Gf.Vec3d(0, 1, 0), np.random.uniform(-rot_variation, rot_variation))
 kiwi = prims.create_prim(
     KIWI_STAGE_PATH,
     "Xform",
     position=np.array([0.2, -0.25, 0]) + np.array([
-        np.random.normal(0, std), 
-        np.random.normal(0, std), 
+        np.random.uniform(-pos_variation, pos_variation), 
+        np.random.uniform(-pos_variation, pos_variation), 
         0
         ]),
     orientation=rotations.gf_rotation_to_np_array(kiwi_rand_rot * kiwi_base_rot),
@@ -133,11 +138,11 @@ bin = prims.create_prim(
     BIN_STAGE_PATH,
     "Xform",
     position=np.array([-0.1, -0.3, 0.1]) + np.array([
-        np.random.normal(0, std), 
-        np.random.normal(0, std), 
+        np.random.uniform(-pos_variation, pos_variation), 
+        np.random.uniform(-pos_variation, pos_variation), 
         0
         ]),
-    orientation=rotations.gf_rotation_to_np_array(Gf.Rotation(Gf.Vec3d(0, 0, 1), 90)),
+    orientation=rotations.gf_rotation_to_np_array(Gf.Rotation(Gf.Vec3d(0, 0, 1), np.random.uniform(-rot_variation, rot_variation))),
     usd_path=assets_root_path + BIN_USD_PATH,
 )
 
@@ -173,20 +178,20 @@ realsense_prim_background = prims.create_prim(
 )
 
 # record video on cameras
-rp_hand = rep.create.render_product(f"{BACKGROUND_CAMERA_PATH}/RSD455/Camera_OmniVision_OV9782_Color", (1280, 720))
-out_dir = os.path.join(os.getcwd(), "/home/don-congrejo/Downloads/test/side")
-writer_hand = rep.WriterRegistry.get("BasicWriter")
-writer_hand.initialize(output_dir=out_dir, rgb=True)
-writer_hand.attach(rp_hand)
+with rep.trigger.on_frame():
+    rp_background = rep.create.render_product(f"{BACKGROUND_CAMERA_PATH}/RSD455/Camera_OmniVision_OV9782_Color", (1280, 720))
+    out_dir_side = os.path.join(IMG_PATH, "side")
+    writer_side = rep.WriterRegistry.get("BasicWriter")
+    writer_side.initialize(output_dir=out_dir_side, rgb=True)
+    writer_side.attach(rp_background)
 
-rp_side = rep.create.render_product(f"{CAMERA_PATH}/RSD455/Camera_OmniVision_OV9782_Color", (1280, 720))
-out_dir = os.path.join(os.getcwd(), "/home/don-congrejo/Downloads/test/hand")
-writer_side = rep.WriterRegistry.get("BasicWriter")
-writer_side.initialize(output_dir=out_dir, rgb=True)
-writer_side.attach(rp_side)
+    rp_hand = rep.create.render_product(f"{CAMERA_PATH}/RSD455/Camera_OmniVision_OV9782_Color", (1280, 720))
+    out_dir_hand = os.path.join(IMG_PATH, "hand")
+    writer_hand = rep.WriterRegistry.get("BasicWriter")
+    writer_hand.initialize(output_dir=out_dir_hand, rgb=True)
+    writer_hand.attach(rp_hand)
 
-
-
+rep.orchestrator.run()
 
 # NOTE: see camera_ros.py for realsense specs
 
@@ -347,7 +352,6 @@ while simulation_app.is_running():
     # Run with a fixed step size
     simulation_context.step(render=True)
 
-    rep.orchestrator.step()
 
     # Tick the Publish/Subscribe JointState and Publish Clock nodes each frame
     og.Controller.set(og.Controller.attribute("/ActionGraph/OnImpulseEvent.state:enableImpulse"), True)

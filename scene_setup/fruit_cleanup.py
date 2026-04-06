@@ -103,10 +103,10 @@ robot = prims.create_prim(
 )
 
 # load scene
-pos_variation = 0.05
-# pos_variation = 0
-rot_variation = 20
-# rot_variation = 0
+# pos_variation = 0.05
+pos_variation = 0
+# rot_variation = 20
+rot_variation = 0
 strawberry = prims.create_prim(
     STRAWBERRY_STAGE_PATH,
     "Xform",

@@ -14,7 +14,6 @@
 # limitations under the License.
 
 # SERGEY: I edited this from isaac_moveit.launch.py
-
 import os
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument

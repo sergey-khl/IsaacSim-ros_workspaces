@@ -35,7 +35,7 @@ COLOR_K = [914.834228515625, 0.0, 653.8088989257812, 0.0, 914.9916381835938, 345
 DEPTH_K = [422.7320861816406, 0.0, 424.1393737792969, 0.0, 422.7320861816406, 239.05503845214844, 0.0, 0.0, 1.0]
 
 # servoing similar to what is done here: https://github.com/moveit/moveit2/blob/main/moveit_ros/moveit_servo/demos/servo_keyboard_input.cpp
-# moveit code similar to what is done in: gripper_to_isaac.py
+# moveit code similar to what is done in Isaac install: gripper_to_isaac.py
 # tf transform stuff based on https://docs.ros.org/en/foxy/Tutorials/Intermediate/Tf2/Tf2-Main.html
 # dino speefic code is gotten from https://gist.github.com/normandipalo/fbc21f23606fbe3d407e22c363cb134e
 class DinoControllerNode(Node):

@@ -192,7 +192,6 @@ class DinoRecordingNode(Node):
                 char = key.char.lower()
                 self.pressed.add(char)
 
-                # Action keys (Trigger once per press)
                 if char == 'c' and not self.is_recording:
                     self.start_recording()
                 elif char == 'f' and self.is_recording:
